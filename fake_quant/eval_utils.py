@@ -121,8 +121,8 @@ def evaluator(model, testenc, dev, args):
             model.model.decoder.project_out = model.model.decoder.project_out.to(dev)
 
     elif llama_type:
-        if model.model.norm is not None:
-            model.model.norm = model.model.norm.to(dev)
+        if model.norm is not None:
+            model.norm = model.norm.to(dev)
 
     model.lm_head = model.lm_head.to(dev)
     nlls = []
@@ -135,8 +135,8 @@ def evaluator(model, testenc, dev, args):
             if model.model.decoder.project_out is not None:
                 hidden_states = model.model.decoder.project_out(hidden_states)
         elif llama_type:
-            if model.model.norm is not None:
-                hidden_states = model.model.norm(hidden_states)
+            if model.norm is not None:
+                hidden_states = model.norm(hidden_states)
         lm_logits = model.lm_head(hidden_states)
         shift_logits = lm_logits[:, :-1, :]
         shift_labels = input_ids[i][:, 1:]
@@ -146,5 +146,75 @@ def evaluator(model, testenc, dev, args):
     nlls_tensor = torch.cat(nlls)
     ppl = torch.exp(nlls_tensor.mean())
     model.config.use_cache = use_cache
+    logging.info(f'\n{args.eval_dataset.upper()} PPL: {ppl.item():.3f}')
+    return ppl.item()
+
+
+@torch.no_grad()
+def evaluator_new(model, testenc, dev, args):
+    """
+    Non-layerwise evaluator: Load the entire model on GPU at once.
+    This is simpler but requires more GPU memory.
+
+    Key differences from evaluator():
+    - No layer-by-layer loading/unloading
+    - Direct forward pass through the whole model
+    - Simpler implementation but higher memory usage
+    - Same output (perplexity) as the original evaluator
+
+    Args:
+        model: The language model to evaluate
+        testenc: Test dataset with input_ids
+        dev: Device to load the model to
+        args: Arguments containing model type, batch size, and eval dataset name
+
+    Returns:
+        ppl: Perplexity score
+    """
+    model.eval()
+    model = model.to(dev)
+
+    # Disable cache during evaluation for memory efficiency
+    use_cache = model.config.use_cache
+    model.config.use_cache = False
+
+    # Prepare input data
+    input_ids = testenc.input_ids  # (1, text_len)
+    nsamples = input_ids.numel() // model.seqlen  # The tail is truncated
+    input_ids = input_ids[:, :nsamples * model.seqlen].view(nsamples, model.seqlen).to(dev)
+
+    batch_size = args.bsz
+    input_ids = [input_ids[i:i + batch_size] for i in range(0, nsamples, batch_size)]
+    nbatches = len(input_ids)
+
+    # Forward pass through the entire model
+    nlls = []
+    loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+
+    for batch in tqdm(input_ids, desc="(Eval) Batches"):
+        # Get model outputs (full forward pass)
+        outputs = model(batch)
+        lm_logits = outputs.logits  # (batch_size, seqlen, vocab_size)
+
+        # Calculate loss for each sequence in the batch
+        # Standard language modeling: predict next token
+        shift_logits = lm_logits[:, :-1, :]  # (batch_size, seqlen-1, vocab_size)
+        shift_labels = batch[:, 1:]  # (batch_size, seqlen-1)
+
+        # Compute cross-entropy loss
+        loss = loss_fct(shift_logits.permute(0, 2, 1), shift_labels)
+        neg_log_likelihood = loss.float().mean(dim=1)  # Mean over sequence length for each sample
+
+        nlls.append(neg_log_likelihood)
+
+    # Compute perplexity from average negative log-likelihood
+    nlls_tensor = torch.cat(nlls)
+    ppl = torch.exp(nlls_tensor.mean())
+
+    # Cleanup
+    model.config.use_cache = use_cache
+    model = model.cpu()
+    torch.cuda.empty_cache()
+
     logging.info(f'\n{args.eval_dataset.upper()} PPL: {ppl.item():.3f}')
     return ppl.item()
