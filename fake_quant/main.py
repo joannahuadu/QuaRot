@@ -144,7 +144,8 @@ def main():
         # Import lm_eval utils
         import lm_eval
         from lm_eval import utils as lm_eval_utils
-        from lm_eval.api.registry import ALL_TASKS
+        from lm_eval import tasks
+        from lm_eval.tasks import initialize_tasks
         from lm_eval.models.huggingface import HFLM
 
         
@@ -157,7 +158,8 @@ def main():
     tokenizer = transformers.AutoTokenizer.from_pretrained(args.model, use_fast=False, use_auth_token=args.hf_token)
     hflm = HFLM(pretrained=model, tokenizer=tokenizer, batch_size=args.lm_eval_batch_size)
 
-    task_names = lm_eval_utils.pattern_match(args.tasks, ALL_TASKS)
+    initialize_tasks()
+    task_names = lm_eval_utils.pattern_match(args.tasks, tasks.ALL_TASKS)
     results = lm_eval.simple_evaluate(hflm, tasks=task_names, batch_size=args.lm_eval_batch_size)['results']
 
     metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4) for task, result in results.items()}
