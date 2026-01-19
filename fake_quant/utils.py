@@ -17,7 +17,8 @@ supported_models = [
             'meta-llama/Llama-2-70b-hf',
             'meta-llama/Meta-Llama-3-8B',
             'meta-llama/Meta-Llama-3-70B',
-            'facebook/opt-125m'
+            'facebook/opt-125m',
+            'meta-llama/Llama-3.1-8B'
             ]
 supported_datasets = ['wikitext2', 'ptb', 'c4']
 
