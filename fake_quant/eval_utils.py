@@ -37,6 +37,7 @@ def evaluator(model, testenc, dev, args):
     elif llama_type:
         layers = model.model.layers
         model.model.embed_tokens = model.model.embed_tokens.to(dev)
+        model.model.rotary_emb = model.model.rotary_emb.to(dev)
 
     layers[0] = layers[0].to(dev)
 
@@ -87,6 +88,7 @@ def evaluator(model, testenc, dev, args):
             model.model.decoder.project_in = model.model.decoder.project_in.cpu()
     elif llama_type:
         model.model.embed_tokens = model.model.embed_tokens.cpu()
+        model.model.rotary_emb = model.model.rotary_emb.cpu()
         position_ids = cache['position_ids']
 
     torch.cuda.empty_cache()
