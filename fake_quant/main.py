@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import utils
 import torch
 import model_utils
@@ -160,14 +163,44 @@ def main():
 
     initialize_tasks()
     task_names = lm_eval_utils.pattern_match(args.tasks, tasks.ALL_TASKS)
-    results = lm_eval.simple_evaluate(hflm, tasks=task_names, batch_size=args.lm_eval_batch_size)['results']
+    results = lm_eval.simple_evaluate(
+        hflm,
+        tasks=task_names,
+        batch_size=args.lm_eval_batch_size,
+    )
 
-    metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4) for task, result in results.items()}
-    metric_vals['acc_avg'] = round(sum(metric_vals.values()) / len(metric_vals.values()), 4)
-    print(metric_vals)
+    results_by_task = results.get("results", {})
+    print("\n" + "=" * 60)
+    print("Evaluation Results")
+    print("=" * 60)
+    for task, metrics in results_by_task.items():
+        print(f"\n{task}:")
+        for k, v in metrics.items():
+            if "stderr" not in k:
+                print(f"  {k}: {v}")
 
-    if args.wandb:
-        wandb.log(metric_vals)
+    print("\n" + "=" * 60)
+    print("Summary")
+    print("=" * 60)
+    summary_metrics = {}
+    for task, metrics in results_by_task.items():
+        for k, v in metrics.items():
+            if "stderr" in k:
+                continue
+            if k.endswith("/acc") or "acc" in k.lower():
+                key = f"{task} {k}"
+                summary_metrics[key] = v
+                print(f"{key}: {v}")
+
+    if args.wandb and summary_metrics:
+        wandb.log(summary_metrics)
+
+    if args.output_file:
+        output_path = Path(args.output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w") as f:
+            json.dump(results_by_task, f, indent=2)
+        print(f"\nResults saved to {args.output_file}")
 
 
 if __name__ == '__main__':
