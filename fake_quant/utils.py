@@ -184,6 +184,12 @@ def parser_gen():
     parser.add_argument('--lm_eval_batch_size', type=int, default=128, help='Batch size for evaluating with lm eval harness.')
     parser.add_argument('--num_fewshot', type=int, default=0, help='Number of few-shot examples (default: 0, zero-shot)')
     parser.add_argument(
+        "--output_file",
+        type=str,
+        default=None,
+        help="Path to save lm_eval results as JSON.",
+    )
+    parser.add_argument(
         "--distribute",
         action="store_true",
         help="Distribute the model on multiple GPUs for evaluation.",
