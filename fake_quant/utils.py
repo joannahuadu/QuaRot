@@ -180,6 +180,12 @@ def parser_gen():
         default=None,
         help="Comma-separated module name patterns to exclude from sparsity.",
     )
+    parser.add_argument(
+        "--sparsity_calibration",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply activation sparsity during weight quantization (default: True).",
+    )
 
 
     # Save/Load Quantized Model Arguments

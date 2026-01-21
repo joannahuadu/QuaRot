@@ -49,7 +49,9 @@ def main():
     else:
         quant_utils.add_actquant(model) #Add Activation Wrapper to the model as the rest of the code assumes it is present
         
-    if args.act_sparsity:
+    def configure_act_sparsity():
+        if not args.act_sparsity:
+            return
         act_sparsity_n, act_sparsity_m = map(int, args.act_sparsity.split(":"))
         target_modules = args.target_modules.split(",") if args.target_modules else None
         qlayers = quant_utils.find_qlayers(model, layers=[quant_utils.ActQuantWrapper])
@@ -63,6 +65,10 @@ def main():
             layer.act_sparsity_location = args.act_sparsity_location
             layer._init_sparsity_scale()
             print(f"{act_sparsity_n}:{act_sparsity_m} sparsity enabled: {name}")
+
+    apply_sparsity_now = args.act_sparsity and (args.sparsity_calibration or args.w_bits >= 16)
+    if apply_sparsity_now:
+        configure_act_sparsity()
                 
     if args.w_bits < 16:
         save_dict = {}
@@ -91,6 +97,8 @@ def main():
             save_dict["model"] = model.state_dict()
             torch.save(save_dict, args.save_qmodel_path)
 
+    if args.act_sparsity and not apply_sparsity_now:
+        configure_act_sparsity()
 
     # Add Input Quantization
     if args.a_bits < 16 or args.v_bits < 16:
