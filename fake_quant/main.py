@@ -49,6 +49,20 @@ def main():
     else:
         quant_utils.add_actquant(model) #Add Activation Wrapper to the model as the rest of the code assumes it is present
         
+    if args.act_sparsity:
+        act_sparsity_n, act_sparsity_m = map(int, args.act_sparsity.split(":"))
+        target_modules = args.target_modules.split(",") if args.target_modules else None
+        qlayers = quant_utils.find_qlayers(model, layers=[quant_utils.ActQuantWrapper])
+        for name, layer in qlayers.items():
+            if target_modules and any(pattern in name for pattern in target_modules):
+                print(f"sparsity skipped: {name}")
+                continue
+            layer.act_sparsity_n = act_sparsity_n
+            layer.act_sparsity_m = act_sparsity_m
+            layer.weight_scoring = args.weight_scoring
+            layer.act_sparsity_location = args.act_sparsity_location
+            layer._init_sparsity_scale()
+            print(f"{act_sparsity_n}:{act_sparsity_m} sparsity enabled: {name}")
                 
     if args.w_bits < 16:
         save_dict = {}

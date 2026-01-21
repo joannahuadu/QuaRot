@@ -18,6 +18,7 @@ supported_models = [
             'meta-llama/Meta-Llama-3-8B',
             'meta-llama/Meta-Llama-3-70B',
             'facebook/opt-125m',
+            'meta-llama/Llama-3.1-8B',
             '/gemini/code/checkpoints/models--meta-llama--Llama-3.1-8B/snapshots/d04e592bb4f6aa9cfee91e2e20afa771667e1d4b'
             ]
 supported_datasets = ['wikitext2', 'ptb', 'c4']
@@ -152,6 +153,33 @@ def parser_gen():
                         help='Pre-RoPE quantization for K-cache (not Supported yet!)')
     parser.add_argument('--k_clip_ratio', type=float, default=1.0,
         help='Clip ratio for k-cache quantization. new_max = max * clip_ratio')
+
+    # Activation Sparsity Arguments
+    parser.add_argument(
+        "--act_sparsity",
+        type=str,
+        default="",
+        help="Enable activation N:M sparsity, format '2:4'. Empty disables.",
+    )
+    parser.add_argument(
+        "--weight_scoring",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable weight scoring for sparsity scaling (default: True)",
+    )
+    parser.add_argument(
+        "--act_sparsity_location",
+        type=str,
+        default="pre_quant",
+        choices=["pre_rotate", "pre_quant", "post_quant"],
+        help="Where to apply activation sparsity (default: pre_quant).",
+    )
+    parser.add_argument(
+        "--target_modules",
+        type=str,
+        default=None,
+        help="Comma-separated module name patterns to exclude from sparsity.",
+    )
 
 
     # Save/Load Quantized Model Arguments

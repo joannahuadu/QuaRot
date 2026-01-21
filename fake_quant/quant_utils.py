@@ -194,6 +194,11 @@ class ActQuantWrapper(torch.nn.Module):
         self.bias = module.bias
         self.quantizer = ActQuantizer()
         self.out_quantizer = ActQuantizer()
+        self.act_sparsity_n = 0
+        self.act_sparsity_m = 0
+        self.weight_scoring = True
+        self.act_sparsity_location = "pre_quant"
+        self.register_buffer("sparsity_scale", None)
         self.register_buffer('had_K', torch.tensor(0))
         self._buffers['had_K'] = None
         self.K = 1
@@ -213,8 +218,73 @@ class ActQuantWrapper(torch.nn.Module):
 
         return str_
 
+    def _init_sparsity_scale(self):
+        with torch.no_grad():
+            weight = self.weight.float()
+            if self.weight_scoring:
+                weight_flat = weight.flatten()
+                num_elements = weight_flat.numel()
+                if num_elements > 1000000:
+                    sample_size = min(100000, num_elements)
+                    indices = torch.randperm(num_elements, device=weight.device)[:sample_size]
+                    weight_sample = weight_flat[indices]
+                    q_low = torch.quantile(weight_sample, 0.005)
+                    q_high = torch.quantile(weight_sample, 0.995)
+                else:
+                    q_low = torch.quantile(weight_flat, 0.005)
+                    q_high = torch.quantile(weight_flat, 0.995)
+                within_range = (weight >= q_low) & (weight <= q_high)
+
+                if within_range.sum() < 2:
+                    weight_processed = weight
+                else:
+                    w_filtered = weight[within_range]
+                    mean = w_filtered.mean()
+                    std = w_filtered.std()
+                    std = std.clamp(min=1e-8)
+                    weight_processed = (weight - mean) / std
+                    weight_processed = weight_processed.clamp(
+                        min=(q_low - mean) / std,
+                        max=(q_high - mean) / std,
+                    )
+
+                w_col_norm = weight_processed.pow(2).sum(dim=0).sqrt()
+            else:
+                w_col_norm = weight.pow(2).sum(dim=0).sqrt()
+
+            min_norm = w_col_norm.min().clamp(min=1e-5)
+            self.sparsity_scale = (w_col_norm / min_norm).view(1, -1)
+
+    def apply_activation_sparsity(self, x):
+        x_shape = x.shape
+        x_2d = x.view(-1, x_shape[-1])
+        if self.sparsity_scale is None:
+            raise ValueError("sparsity_scale is not set.")
+
+        metric = x_2d.abs().float() * self.sparsity_scale
+        mask = torch.zeros_like(metric, dtype=torch.bool)
+        for ii in range(0, metric.shape[1], self.act_sparsity_m):
+            group_size = min(self.act_sparsity_m, metric.shape[1] - ii)
+            if group_size < self.act_sparsity_n:
+                continue
+            tmp = metric[:, ii: ii + group_size]
+            idx = torch.topk(tmp, self.act_sparsity_n, dim=1, largest=False)[1]
+            mask.scatter_(1, ii + idx, True)
+
+        x_2d = x_2d.masked_fill(mask, 0)
+        return x_2d.view(x_shape)
+
     def forward(self, x):
         x_dtype = x.dtype
+
+        if (
+            self.act_sparsity_n
+            and self.act_sparsity_m
+            and self.act_sparsity_location == "pre_rotate"
+        ):
+            if self.sparsity_scale is None:
+                raise ValueError("sparsity_scale is not set.")
+            x = self.apply_activation_sparsity(x)
 
         # Rotate, if needed
         if self.online_full_had:
@@ -241,10 +311,28 @@ class ActQuantWrapper(torch.nn.Module):
                 x = x.to(x_dtype)
             x = x.reshape(init_shape)
 
+        if (
+            self.act_sparsity_n
+            and self.act_sparsity_m
+            and self.act_sparsity_location == "pre_quant"
+        ):
+            if self.sparsity_scale is None:
+                raise ValueError("sparsity_scale is not set.")
+            x = self.apply_activation_sparsity(x)
+
         if self.quantizer.bits < 16: #Quantize, if needed
             self.quantizer.find_params(x)
             x = self.quantizer(x).to(x_dtype)
             self.quantizer.free()
+
+        if (
+            self.act_sparsity_n
+            and self.act_sparsity_m
+            and self.act_sparsity_location == "post_quant"
+        ):
+            if self.sparsity_scale is None:
+                raise ValueError("sparsity_scale is not set.")
+            x = self.apply_activation_sparsity(x)
 
         x = self.module(x).to(x_dtype)
 
