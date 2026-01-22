@@ -11,7 +11,6 @@ nohup env CUDA_VISIBLE_DEVICES=0 python fake_quant/main.py \
     --model "$MODEL_PATH" \
     --eval_dataset wikitext2 \
     --bsz 8 \
-    --rotate \
     --a_bits 4 \
     --w_bits 4 \
     --w_clip \
@@ -24,7 +23,6 @@ nohup env CUDA_VISIBLE_DEVICES=1 python fake_quant/main.py \
     --model "$MODEL_PATH" \
     --eval_dataset wikitext2 \
     --bsz 8 \
-    --rotate \
     --a_bits 8 \
     --w_bits 8 \
     --w_clip \
@@ -37,7 +35,6 @@ nohup env CUDA_VISIBLE_DEVICES=1 python fake_quant/main.py \
     --model "$MODEL_PATH" \
     --eval_dataset wikitext2 \
     --bsz 8 \
-    --rotate \
     --a_bits 16 \
     --w_bits 16 \
     --lm_eval \

@@ -64,10 +64,11 @@ def main():
             layer.weight_scoring = args.weight_scoring
             layer.act_sparsity_location = args.act_sparsity_location
             layer._init_sparsity_scale()
-            print(f"{act_sparsity_n}:{act_sparsity_m} sparsity enabled: {name}")
+            print(f"{act_sparsity_n}:{act_sparsity_m} {args.act_sparsity_location} sparsity enabled: {name}")
 
     apply_sparsity_now = args.act_sparsity and (args.sparsity_calibration or args.w_bits >= 16)
     if apply_sparsity_now:
+        print("with sparsity_calibration...")
         configure_act_sparsity()
                 
     if args.w_bits < 16:
@@ -98,6 +99,7 @@ def main():
             torch.save(save_dict, args.save_qmodel_path)
 
     if args.act_sparsity and not apply_sparsity_now:
+        print("without sparsity_calibration...")
         configure_act_sparsity()
 
     # Add Input Quantization
