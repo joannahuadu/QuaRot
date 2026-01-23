@@ -22,6 +22,7 @@ supported_models = [
             '/gemini/code/checkpoints/models--meta-llama--Llama-3.1-8B/snapshots/d04e592bb4f6aa9cfee91e2e20afa771667e1d4b'
             ]
 supported_datasets = ['wikitext2', 'ptb', 'c4']
+supported_eigen_datasets =["wikitext2", "arc", "mathqa", "gsm8k", "mmlu"]
 
 # These flags disable using TensorFloat-32 tensor cores (to avoid numerical issues)
 torch.backends.cuda.matmul.allow_tf32 = False
@@ -132,6 +133,16 @@ def parser_gen():
     # General Quantization Arguments
     parser.add_argument('--int8_down_proj', action=argparse.BooleanOptionalAction, default=False,
                         help='Use INT8 for Down Projection! If this set, both weights and activations of this layer will be in INT8')
+
+    # Eigen Compensation Arguments
+    parser.add_argument('--eigen_compensation', action=argparse.BooleanOptionalAction, default=False,
+                        help='Apply eigen-based error compensation after weight/activation quantization.')
+    parser.add_argument('--eigen_dataset', type=str, default='wikitext2',
+                        help='Dataset for eigen compensation calibration.', choices=supported_eigen_datasets)
+    parser.add_argument('--eigen_nsamples', type=int, default=256,
+                        help='Number of samples for eigen compensation.')
+    parser.add_argument('--eigen_r', type=int, default=512,
+                        help='Rank for eigen compensation.')
 
     # KV-Cache Quantization Arguments
     parser.add_argument('--v_bits', type=int, default=16,
