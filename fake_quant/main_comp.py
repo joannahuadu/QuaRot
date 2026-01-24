@@ -328,6 +328,7 @@ def main():
     _apply_k_quant(model, args)
 
     if args.eigen_compensation:
+        print("Start eigen_compensation...")
         if compressed_weights is None:
             print("Eigen compensation requested but no compressed weights were produced.")
         else:
