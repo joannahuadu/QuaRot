@@ -442,6 +442,7 @@ def gptq_fwrd__wo_replcaing_weight(model, dataloader, dev, args):
                 quant_w = gptq[name].fasterquant_wo_replcaing_weight(
                     percdamp=args.percdamp, groupsize=layer_w_groupsize, actorder=args.act_order, static_groups=False
                 )
+                gptq[name].layer.weight.data = quant_w
                 compressed_weights['model.layers.%d.%s' % (i, name)] = quant_w.cpu()
                 quantizers['model.layers.%d.%s' % (i, name)] = gptq[name].quantizer
                 gptq[name].free()
